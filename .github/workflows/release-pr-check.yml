@@ -21,8 +21,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           script: |
-            console.log(context);
-            
             const prNumber = context.payload.pull_request.number;
             const branchName = context.payload.pull_request.head.ref;
             const baseRefName = context.payload.pull_request.base.ref;
@@ -44,15 +42,9 @@ jobs:
 
             const commitHashesOnPR = commitsOnPR.data.map(commit => commit.sha);
             const commitHashesOnDevelop = commitsOnDevelop.data.map(commit => commit.sha);
-
-            console.log(`PR commit hashes: ${JSON.stringify(commitHashesOnPR)}`);
-            console.log(`Develop commit hashes: ${JSON.stringify(commitHashesOnDevelop)}`);
-
             const missingCommits = commitHashesOnPR.filter(commit => !commitHashesOnDevelop.includes(commit));
 
-            console.log(`Missing commits: ${JSON.stringify(missingCommits)}`);
-            
-            const warningComment = '**WARNING:** This PR includes commits that are not present in the develop branch:\n';
+            const warningComment = '**WARNING:** This PR includes commits that are not present in the develop branch. Please add the following commits to `develop` and cherry-pick them into this release branch:\n';
             const commentBody = missingCommits.length > 0
               ? `${warningComment}- ${missingCommits.join("\n- ")}`
               : "";
@@ -75,6 +67,16 @@ jobs:
                 repo: context.repo.repo,
                 issue_number: prNumber,
                 body: commentBody,
+              });
+            }
+            
+            // If there's an existing warning comment and there are still missing commits, update the warning comment
+            if (existingWarningComment && missingCommits.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: commentBody,
+                comment_id: existingWarningComment.id,
               });
             }
 
