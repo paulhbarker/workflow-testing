@@ -72,7 +72,7 @@ jobs:
             
             // If there's an existing warning comment and there are still missing commits, update the warning comment
             if (existingWarningComment && missingCommits.length > 0) {
-              await github.rest.issues.createComment({
+              await github.rest.issues.updateComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 body: commentBody,
