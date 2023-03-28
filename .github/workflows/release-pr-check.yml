@@ -7,7 +7,7 @@ on:
     types: [opened, synchronize, reopened, edited, ready_for_review]
 
 jobs:
-  check-commits:
+  check-release-commits:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
