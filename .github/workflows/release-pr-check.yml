@@ -15,15 +15,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Fetch develop branch
-        run: |
-          git fetch origin develop --depth=200
-          echo "DEVELOP_COMMIT_HASHES:"
-          git log --pretty=format:"%h" origin/develop --max-count=200
-        id: fetch_develop
-
       - name: Check commits
-        if: ${{ steps.check-commits.outputs.message != '' }}
         uses: actions/github-script@v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -77,7 +69,7 @@ jobs:
             );
 
             // If there's no existing warning comment and there are missing commits, add a new warning comment
-            if (!existingWarningComment && message) {
+            if (!existingWarningComment && missingCommits.length > 0) {
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -87,7 +79,7 @@ jobs:
             }
 
             // If there's an existing warning comment and there are no missing commits, delete the warning comment
-            if (existingWarningComment && !message) {
+            if (existingWarningComment && missingCommits.length === 0) {
               await github.rest.issues.deleteComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
