@@ -9,16 +9,17 @@ on:
 jobs:
   check-commits:
     runs-on: ubuntu-latest
-    env:
-      NODE_VERSION: '16.x'
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+        env:
+          NODE_VERSION: '16.x'
 
       - name: Check commits
         uses: actions/github-script@v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_VERSION: '16.x'
         with:
           script: |
             const prNumber = context.payload.pull_request.number;
