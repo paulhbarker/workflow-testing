@@ -45,7 +45,7 @@ jobs:
             const missingCommits = commitHashesOnPR.filter(commit => !commitHashesOnDevelop.includes(commit));
 
             const warningComment = 
-              '**WARNING:** This PR includes commits that are not present in the `develop` branch.' + 
+              '**WARNING:** This PR includes commits that are not present in the `develop` branch. ' + 
               'To ensure that all changes are integrated into future releases, please consider adding ' + 
               'the following commits to `develop` and cherry-picking them into this release branch:\n';
             
