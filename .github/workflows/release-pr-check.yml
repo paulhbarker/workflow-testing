@@ -9,42 +9,88 @@ on:
 jobs:
   check-commits:
     runs-on: ubuntu-latest
+    env:
+      NODE_VERSION: '16.x'
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
       - name: Fetch develop branch
-        run: git fetch origin develop
+        run: |
+          git fetch origin develop --depth=200
+          echo "DEVELOP_COMMIT_HASHES:"
+          git log --pretty=format:"%h" origin/develop --max-count=200
+        id: fetch_develop
 
       - name: Check commits
-        run: |
-          # Get the commit hashes on the PR branch
-          PR_COMMITS=$(git log --pretty=format:"%h" HEAD ^origin/develop)
+        if: ${{ steps.check-commits.outputs.message != '' }}
+        uses: actions/github-script@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          script: |
+            console.log(context);
+            
+            const prNumber = context.payload.pull_request.number;
+            const branchName = context.payload.pull_request.head.ref;
+            const baseRefName = context.payload.pull_request.base.ref;
+            const maxCommitsToCheck = 200;
 
-          # Get the commit hashes on the develop branch
-          DEVELOP_COMMITS=$(git log --pretty=format:"%h" origin/develop)
+            const commitsOnPR = await github.rest.pulls.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+              per_page: maxCommitsToCheck
+            });
 
-          # Check if any of the PR commits are not in the develop branch
-          MESSAGE=""
-          for COMMIT in $PR_COMMITS; do
-            if ! echo "$DEVELOP_COMMITS" | grep -q "$COMMIT"; then
-              MESSAGE="$MESSAGE - Commit $COMMIT is not included in the develop branch\n"
-            fi
-          done
+            const commitsOnDevelop = await github.rest.repos.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: `develop`,
+              per_page: maxCommitsToCheck
+            });
 
-          # Add comment to PR if there are missing commits
-          if [ "$MESSAGE" != "" ]; then
-            MESSAGE="**Warning:** The following commits are not included in the develop branch:\n$MESSAGE"
-            BODY="{\"body\": \"$MESSAGE\"}"
-            API_URL=$(jq -r '.pull_request.comments_url' "$GITHUB_EVENT_PATH")
-            curl -sSL -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -d "$BODY" "$API_URL" > /dev/null
-          else
-            # Remove previous comment if there are no missing commits
-            COMMENT_ID=$(curl -sSL -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                          "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.number }}/comments" | \
-                          jq -r '.[] | select(.body | contains("**Warning:** The following commits are not included in the develop branch:")) | .id')
-            if [ "$COMMENT_ID" != "" ]; then
-              API_URL="https://api.github.com/repos/${{ github.repository }}/issues/comments/$COMMENT_ID"
-              curl -sSL -X DELETE -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$API_URL" > /dev/null
-            fi
-          fi
+            const commitHashesOnPR = commitsOnPR.data.map(commit => commit.sha);
+            const commitHashesOnDevelop = commitsOnDevelop.data.map(commit => commit.sha);
+
+            console.log(`PR commit hashes: ${JSON.stringify(commitHashesOnPR)}`);
+            console.log(`Develop commit hashes: ${JSON.stringify(commitHashesOnDevelop)}`);
+
+            const missingCommits = commitHashesOnPR.filter(commit => !commitHashesOnDevelop.includes(commit));
+
+            console.log(`Missing commits: ${JSON.stringify(missingCommits)}`);
+            
+            const warningComment = '**WARNING:** This PR includes commits that are not present in the develop branch:\n';
+            const commentBody = missingCommits.length > 0
+              ? `${warningComment}- ${missingCommits.join("\n- ")}`
+              : "";
+
+            // Check if there's already a warning comment on the PR
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const existingWarningComment = comments.data.find((comment) =>
+              comment.body.includes(warningComment)
+            );
+
+            // If there's no existing warning comment and there are missing commits, add a new warning comment
+            if (!existingWarningComment && message) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: commentBody,
+              });
+            }
+
+            // If there's an existing warning comment and there are no missing commits, delete the warning comment
+            if (existingWarningComment && !message) {
+              await github.rest.issues.deleteComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingWarningComment.id,
+              });
+            }
