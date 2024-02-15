@@ -3,8 +3,8 @@ name: Close Old PRs
 
 on:
   schedule:
-    # Runs at 00:00 UTC every day
-    - cron: '*/5 * * * *'
+    # Runs at 00:00 on Jan 1
+    - cron: '0 0 1 1 *'
 
 jobs:
   close-old-prs:
@@ -27,7 +27,7 @@ jobs:
               per_page: 100,
             });
             
-            const closingDate = new Date(Date.now() - 60 * 1000);
+            const closingDate = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
             
             for (const pull of pulls) {
               const prCreatedAt = new Date(pull.created_at);
