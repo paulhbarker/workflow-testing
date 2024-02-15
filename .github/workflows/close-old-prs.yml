@@ -1,0 +1,45 @@
+# Closes PRs that are older than 14 days
+name: Close Old PRs
+
+on:
+  schedule:
+    # Runs at 00:00 UTC every day
+    - cron: '0 0 * * *'
+
+jobs:
+  close-old-prs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+
+      - name: Close old PRs
+        uses: actions/github-script@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_VERSION: '16.x'
+        with:
+          script: |
+            const { data: pulls } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+            
+            const closingDate = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+            
+            for (const pull of pulls) {
+              const prCreatedAt = new Date(pull.created_at);
+            
+              if (prCreatedAt < closingDate) {
+                await github.rest.pulls.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pull.number,
+                  state: 'closed',
+                });
+            
+                console.log(`Closed PR #${pull.number}`);
+              }
+            }
