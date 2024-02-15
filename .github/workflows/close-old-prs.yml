@@ -4,7 +4,7 @@ name: Close Old PRs
 on:
   schedule:
     # Runs at 00:00 UTC every day
-    - cron: '* * * * *'
+    - cron: '*/5 * * * *'
 
 jobs:
   close-old-prs:
